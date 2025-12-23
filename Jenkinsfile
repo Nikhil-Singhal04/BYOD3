@@ -23,6 +23,7 @@ pipeline {
                 echo "Running on branch: ${env.BRANCH_NAME}"
                 echo "hello"
                 echo "world"
+                echo "world"
             }
         }
 
