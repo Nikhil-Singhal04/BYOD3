@@ -22,7 +22,7 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                dir('infra/terraform') {
+                {
                     withCredentials([
                         [$class: 'AmazonWebServicesCredentialsBinding',
                          credentialsId: 'AWS-CREDS']
@@ -35,7 +35,7 @@ pipeline {
 
         stage('Terraform Plan') {
             steps {
-                dir('infra/terraform') {
+               {
                     withCredentials([
                         [$class: 'AmazonWebServicesCredentialsBinding',
                          credentialsId: 'AWS-CREDS']
@@ -66,7 +66,7 @@ pipeline {
                 branch 'dev'
             }
             steps {
-                dir('infra/terraform') {
+                {
                     withCredentials([
                         [$class: 'AmazonWebServicesCredentialsBinding',
                          credentialsId: 'AWS-CREDS']
