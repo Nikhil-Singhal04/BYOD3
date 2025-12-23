@@ -147,10 +147,10 @@ pipeline {
                     ssh -o StrictHostKeyChecking=no \
                         -o ConnectTimeout=10 \
                         -i "$SSH_KEY" ubuntu@"$INSTANCE_IP" << EOF
-                        sudo apt update
-                        sudo apt install -y grafana
-                        sudo systemctl enable grafana-server
-                        sudo systemctl start grafana-server
+                    sudo apt update
+                    sudo apt install -y grafana
+                    sudo systemctl enable grafana-server
+                    sudo systemctl start grafana-server
                     EOF
                     '''
                 }
