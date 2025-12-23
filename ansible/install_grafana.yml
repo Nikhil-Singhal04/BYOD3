@@ -1,0 +1,65 @@
+---
+- name: Install and start Grafana
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install prerequisites (Debian)
+      when: ansible_os_family == 'Debian'
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - software-properties-common
+          - wget
+          - gnupg
+        state: present
+        update_cache: true
+
+    - name: Add Grafana GPG key (Debian)
+      when: ansible_os_family == 'Debian'
+      ansible.builtin.apt_key:
+        url: https://apt.grafana.com/gpg.key
+        state: present
+
+    - name: Add Grafana APT repository (Debian)
+      when: ansible_os_family == 'Debian'
+      ansible.builtin.apt_repository:
+        repo: deb https://apt.grafana.com stable main
+        state: present
+        filename: grafana
+
+    - name: Install Grafana (Debian)
+      when: ansible_os_family == 'Debian'
+      ansible.builtin.apt:
+        name: grafana
+        state: present
+        update_cache: true
+
+    - name: Add Grafana YUM repository (RedHat)
+      when: ansible_os_family == 'RedHat'
+      ansible.builtin.copy:
+        dest: /etc/yum.repos.d/grafana.repo
+        mode: '0644'
+        content: |
+          [grafana]
+          name=grafana
+          baseurl=https://rpm.grafana.com
+          repo_gpgcheck=1
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://rpm.grafana.com/gpg.key
+          sslverify=1
+          sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+
+    - name: Install Grafana (RedHat)
+      when: ansible_os_family == 'RedHat'
+      ansible.builtin.yum:
+        name: grafana
+        state: present
+
+    - name: Enable and start Grafana service
+      ansible.builtin.systemd:
+        name: grafana-server
+        enabled: true
+        state: started
