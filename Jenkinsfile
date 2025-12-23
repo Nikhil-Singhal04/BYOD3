@@ -21,6 +21,7 @@ pipeline {
             steps {
                 echo "Running on branch: ${env.BRANCH_NAME}"
                 echo "hello"
+                echo "hello"
             }
         }
 
