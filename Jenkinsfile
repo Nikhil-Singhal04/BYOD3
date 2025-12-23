@@ -5,7 +5,7 @@ pipeline {
         TF_IN_AUTOMATION = 'true'
         TF_CLI_ARGS      = '-no-color'
         AWS_CREDENTIALS_ID = 'AWS-CREDS'
-        SSH_CREDENTIALS_ID = 'SSH_CRED_ID'
+        SSH_CREDENTIALS_ID = 'ssh-key'
         // Terraform files live in the repo root in this workspace
         TERRAFORM_DIR = '.'
     }
