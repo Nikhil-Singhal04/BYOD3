@@ -47,7 +47,7 @@ resource "aws_security_group" "grafana" {
 
 resource "aws_instance" "example" {
   ami           = "ami-0ecb62995f68bb549" # Replace with a suitable AMI
-  instance_type = var.instance_type # Use the variable for instance type
+  instance_type = var.instance_type # Use the varce type
 
   key_name               = var.ssh_key_name
   vpc_security_group_ids = [aws_security_group.grafana.id]
