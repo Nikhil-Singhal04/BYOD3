@@ -5,7 +5,7 @@ pipeline {
         TF_IN_AUTOMATION = 'true'
         TF_CLI_ARGS      = '-no-color'
         AWS_CREDENTIALS_ID = 'AWS-CREDS'
-        // Terraform files live in the repo root in this workspace
+        // Terraform files live in the repo root in th
         TERRAFORM_DIR = '.'
     }
 
