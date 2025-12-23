@@ -9,7 +9,7 @@ terraform {
 
 provider "aws" {
   region = var.region # Use the variable for region
-  # Credentials will be supplied via environ
+  # Credentials will be supplied via e
 }
 
 resource "aws_instance" "example" {
