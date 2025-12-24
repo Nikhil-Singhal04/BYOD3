@@ -21,8 +21,8 @@ variable "allowed_ssh_cidr" {
   description = "CIDR allowed to SSH to the instance (port 22). Use your public IP /32 for safety."
 }
 
-variable "allowed_grafana_cidr" {
+variable "allowed_splunk_cidr" {
   type        = string
   default     = "0.0.0.0/0"
-  description = "CIDR allowed to access Grafana (port 3000). Use your public IP /32 for safety."
+  description = "CIDR allowed to access Splunk Web (port 8000). Use your public IP /32 for safety."
 }

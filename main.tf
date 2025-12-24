@@ -16,9 +16,9 @@ data "aws_vpc" "default" {
   default = true
 }
 
-resource "aws_security_group" "grafana" {
-  name        = "grafana-sg"
-  description = "Allow SSH and Grafana"
+resource "aws_security_group" "splunk" {
+  name        = "splunk-sg"
+  description = "Allow SSH and Splunk Web"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
@@ -30,11 +30,11 @@ resource "aws_security_group" "grafana" {
   }
 
   ingress {
-    description = "Grafana"
-    from_port   = 3000
-    to_port     = 3000
+    description = "Splunk Web"
+    from_port   = 8000
+    to_port     = 8000
     protocol    = "tcp"
-    cidr_blocks = [var.allowed_grafana_cidr]
+    cidr_blocks = [var.allowed_splunk_cidr]
   }
 
   egress {
@@ -50,9 +50,9 @@ resource "aws_instance" "example" {
   instance_type = var.instance_type # Use the varce type
 
   key_name               = var.ssh_key_name
-  vpc_security_group_ids = [aws_security_group.grafana.id]
+  vpc_security_group_ids = [aws_security_group.splunk.id]
 
   tags = {
-    Name = "ExampleInstance"
+    Name = "SplunkInstance"
   }
 }
