@@ -1,12 +1,14 @@
 ---
-- name: Install and start Splunk Enterprise (Docker)
+- name: Install and start Splunk Enterprise (Package Based)
   hosts: splunk
-  become: true
-  gather_facts: true
+  become: yes
+  gather_facts: yes
 
   vars:
-    splunk_container_name: "splunk"
-    splunk_container_image: "splunk/splunk:latest"
+    splunk_version: "9.1.1"
+    splunk_build: "64e843ea36b1"
+    splunk_pkg: "/tmp/splunk.deb"
+    splunk_home: "/opt/splunk"
     splunk_web_port: 8000
 
   pre_tasks:
@@ -15,70 +17,72 @@
         that:
           - splunk_admin_password is defined
           - splunk_admin_password | length >= 8
-        fail_msg: "Provide -e splunk_admin_password=<password> (min 8 chars)."
+        fail_msg: "Provide -e splunk_admin_password=<password>"
 
   tasks:
-    - name: Install prerequisites (Debian)
-      when: ansible_os_family == "Debian"
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
       ansible.builtin.apt:
         name:
-          - docker.io
-          - curl
-        update_cache: true
-        state: present
-
-    - name: Install prerequisites (RedHat)
-      when: ansible_os_family == "RedHat"
-      ansible.builtin.yum:
-        name:
-          - docker
+          - wget
           - curl
         state: present
 
-    - name: Enable and start Docker
-      ansible.builtin.systemd:
-        name: docker
-        enabled: true
-        state: started
+    - name: Download Splunk DEB package
+      ansible.builtin.get_url:
+        url: "https://download.splunk.com/products/splunk/releases/{{ splunk_version }}/linux/splunk-{{ splunk_version }}-{{ splunk_build }}-linux-2.6-amd64.deb"
+        dest: "{{ splunk_pkg }}"
+        mode: "0644"
 
-    - name: Pull Splunk container image
-      ansible.builtin.shell: "docker pull {{ splunk_container_image }}"
-      register: splunk_pull
-      changed_when: "'Downloaded newer image' in splunk_pull.stdout"
-      failed_when: false
+    - name: Install Splunk
+      ansible.builtin.apt:
+        deb: "{{ splunk_pkg }}"
+        state: present
 
-    - name: Check whether Splunk container exists
-      ansible.builtin.shell: >
-        docker ps -a
-        --filter name=^/{{ splunk_container_name }}$
-        --format '{{ "{{.Names}}" }}'
-      register: splunk_container_exists
-      changed_when: false
+    - name: Seed admin password (first run only)
+      ansible.builtin.copy:
+        dest: "{{ splunk_home }}/etc/system/local/user-seed.conf"
+        content: |
+          [user_info]
+          USERNAME = admin
+          PASSWORD = {{ splunk_admin_password }}
+        owner: splunk
+        group: splunk
+        mode: "0600"
+      args:
+        creates: "{{ splunk_home }}/etc/system/local/user-seed.conf"
 
-    - name: Run Splunk container (first time)
-      when: splunk_container_exists.stdout | trim == ""
+    - name: Start Splunk and accept license (only once)
       ansible.builtin.command: >
-        docker run -d
-        --name {{ splunk_container_name }}
-        --restart unless-stopped
-        -p {{ splunk_web_port }}:8000
-        -p 8088:8088
-        -p 8089:8089
-        -e SPLUNK_START_ARGS=--accept-license
-        -e SPLUNK_PASSWORD={{ splunk_admin_password }}
-        {{ splunk_container_image }}
+        {{ splunk_home }}/bin/splunk start
+        --accept-license
+        --answer-yes
+        --no-prompt
+      args:
+        creates: "{{ splunk_home }}/var/run/splunk/splunkd.pid"
 
-    - name: Ensure Splunk container is started
-      when: splunk_container_exists.stdout | trim != ""
-      ansible.builtin.command: "docker start {{ splunk_container_name }}"
-      register: splunk_start_existing
-      changed_when: "'Started' in splunk_start_existing.stdout"
-      failed_when: false
+    - name: Enable Splunk at boot
+      ansible.builtin.command: >
+        {{ splunk_home }}/bin/splunk enable boot-start
+        --accept-license
+        --answer-yes
+        --no-prompt
+      args:
+        creates: "/etc/init.d/splunk"
 
-    - name: Wait for Splunk to be ready inside container
-      ansible.builtin.shell: |
-        docker logs {{ splunk_container_name }} 2>&1 | grep -q "Splunk started"
-      register: splunk_ready
-      retries: 30
-      delay: 30
-      until: splunk_ready.rc == 0
+    - name: Ensure Splunk service is running
+      ansible.builtin.command: "{{ splunk_home }}/bin/splunk status"
+      register: splunk_status
+      changed_when: false
+      failed_when: "'splunkd is running' not in splunk_status.stdout"
+
+    - name: Wait for Splunk Web port to open
+      ansible.builtin.wait_for:
+        host: "127.0.0.1"
+        port: "{{ splunk_web_port }}"
+        delay: 10
+        timeout: 300
