@@ -42,43 +42,43 @@
         state: started
 
     - name: Pull Splunk container image
-      ansible.builtin.command:
-        cmd: "docker pull {{ splunk_container_image }}"
+      ansible.builtin.shell: "docker pull {{ splunk_container_image }}"
       register: splunk_pull
-      changed_when: "'Downloaded newer image' in splunk_pull.stdout or 'Status: Downloaded newer image' in splunk_pull.stdout"
+      changed_when: "'Downloaded newer image' in splunk_pull.stdout"
       failed_when: false
 
     - name: Check whether Splunk container exists
-      ansible.builtin.shell: "docker ps -a --filter name=^/{{ splunk_container_name }}$ --format '{% raw %}{{.Names}}{% endraw %}'"
+      ansible.builtin.shell: >
+        docker ps -a
+        --filter name=^/{{ splunk_container_name }}$
+        --format '{{ "{{.Names}}" }}'
       register: splunk_container_exists
       changed_when: false
 
     - name: Run Splunk container (first time)
       when: splunk_container_exists.stdout | trim == ""
-      ansible.builtin.command:
-        cmd: >-
-          docker run -d
-          --name {{ splunk_container_name }}
-          --restart unless-stopped
-          -p {{ splunk_web_port }}:8000
-          -p 8088:8088
-          -p 8089:8089
-          -e SPLUNK_START_ARGS=--accept-license
-          -e SPLUNK_PASSWORD={{ splunk_admin_password }}
-          {{ splunk_container_image }}
+      ansible.builtin.command: >
+        docker run -d
+        --name {{ splunk_container_name }}
+        --restart unless-stopped
+        -p {{ splunk_web_port }}:8000
+        -p 8088:8088
+        -p 8089:8089
+        -e SPLUNK_START_ARGS=--accept-license
+        -e SPLUNK_PASSWORD={{ splunk_admin_password }}
+        {{ splunk_container_image }}
 
     - name: Ensure Splunk container is started
       when: splunk_container_exists.stdout | trim != ""
-      ansible.builtin.command:
-        cmd: "docker start {{ splunk_container_name }}"
+      ansible.builtin.command: "docker start {{ splunk_container_name }}"
       register: splunk_start_existing
       changed_when: "'Started' in splunk_start_existing.stdout"
       failed_when: false
 
-    - name: Wait for Splunk Web port to open
-      ansible.builtin.wait_for:
-        host: "127.0.0.1"
-        port: "{{ splunk_web_port }}"
-        delay: 10
-        timeout: 300
-
+    - name: Wait for Splunk to be ready inside container
+      ansible.builtin.shell: |
+        docker logs {{ splunk_container_name }} 2>&1 | grep -q "Splunk started"
+      register: splunk_ready
+      retries: 30
+      delay: 30
+      until: splunk_ready.rc == 0
