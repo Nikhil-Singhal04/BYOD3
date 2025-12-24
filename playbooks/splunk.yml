@@ -1,54 +1,84 @@
 ---
-- name: Mock install and start Splunk service (Exam-safe)
+- name: Install and start Splunk Enterprise (Docker)
   hosts: splunk
   become: true
-  gather_facts: false
+  gather_facts: true
 
   vars:
-    splunk_user: splunk
-    splunk_group: splunk
-    splunk_home: /opt/splunk
+    splunk_container_name: "splunk"
+    splunk_container_image: "splunk/splunk:latest"
+    splunk_web_port: 8000
+
+  pre_tasks:
+    - name: Fail if splunk_admin_password not provided
+      ansible.builtin.assert:
+        that:
+          - splunk_admin_password is defined
+          - splunk_admin_password | length >= 8
+        fail_msg: "Provide -e splunk_admin_password=<password> (min 8 chars)."
 
   tasks:
-    - name: Create splunk group
-      group:
-        name: "{{ splunk_group }}"
+    - name: Install prerequisites (Debian)
+      when: ansible_os_family == "Debian"
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - curl
+        update_cache: true
         state: present
 
-    - name: Create splunk user
-      user:
-        name: "{{ splunk_user }}"
-        group: "{{ splunk_group }}"
-        shell: /bin/bash
-        create_home: true
+    - name: Install prerequisites (RedHat)
+      when: ansible_os_family == "RedHat"
+      ansible.builtin.yum:
+        name:
+          - docker
+          - curl
+        state: present
 
-    - name: Create splunk directory structure
-      file:
-        path: "{{ splunk_home }}/bin"
-        state: directory
-        owner: "{{ splunk_user }}"
-        group: "{{ splunk_group }}"
-        recurse: true
+    - name: Enable and start Docker
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
 
-    - name: Create mock splunk binary
-      copy:
-        dest: "{{ splunk_home }}/bin/splunk"
-        owner: "{{ splunk_user }}"
-        group: "{{ splunk_group }}"
-        mode: '0755'
-        content: |
-          #!/bin/bash
-          if [ "$1" = "status" ]; then
-            echo "splunkd is running"
-          elif [ "$1" = "version" ]; then
-            echo "Splunk 9.x (mock)"
-          else
-            echo "Splunk mock command"
-          fi
+    - name: Pull Splunk container image
+      ansible.builtin.command:
+        cmd: "docker pull {{ splunk_container_image }}"
+      register: splunk_pull
+      changed_when: "'Downloaded newer image' in splunk_pull.stdout or 'Status: Downloaded newer image' in splunk_pull.stdout"
+      failed_when: false
 
-    - name: Verify mock Splunk status
-      become_user: splunk
-      command: "{{ splunk_home }}/bin/splunk status"
-      register: splunk_status
+    - name: Check whether Splunk container exists
+      ansible.builtin.shell: "docker ps -a --filter name=^/{{ splunk_container_name }}$ --format '{% raw %}{{.Names}}{% endraw %}'"
+      register: splunk_container_exists
       changed_when: false
-      failed_when: "'splunkd is running' not in splunk_status.stdout"
+
+    - name: Run Splunk container (first time)
+      when: splunk_container_exists.stdout | trim == ""
+      ansible.builtin.command:
+        cmd: >-
+          docker run -d
+          --name {{ splunk_container_name }}
+          --restart unless-stopped
+          -p {{ splunk_web_port }}:8000
+          -p 8088:8088
+          -p 8089:8089
+          -e SPLUNK_START_ARGS=--accept-license
+          -e SPLUNK_PASSWORD={{ splunk_admin_password }}
+          {{ splunk_container_image }}
+
+    - name: Ensure Splunk container is started
+      when: splunk_container_exists.stdout | trim != ""
+      ansible.builtin.command:
+        cmd: "docker start {{ splunk_container_name }}"
+      register: splunk_start_existing
+      changed_when: "'Started' in splunk_start_existing.stdout"
+      failed_when: false
+
+    - name: Wait for Splunk Web port to open
+      ansible.builtin.wait_for:
+        host: "127.0.0.1"
+        port: "{{ splunk_web_port }}"
+        delay: 10
+        timeout: 300
+

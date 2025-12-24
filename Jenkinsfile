@@ -208,7 +208,16 @@ EOF
         }
 
         failure {
-            echo "Pipeline failed — infrastructure retained for debugging"
+            echo "Pipeline failed — destroying infrastructure"
+
+            dir("${TERRAFORM_DIR}") {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: env.AWS_CREDENTIALS_ID]
+                ]) {
+                    sh 'terraform destroy -input=false -auto-approve -var-file="${TFVARS_FILE}" || true'
+                }
+            }
         }
 
         aborted {
