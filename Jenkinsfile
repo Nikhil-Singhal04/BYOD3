@@ -10,6 +10,7 @@ pipeline {
         SPLUNK_ADMIN_PASSWORD_CREDENTIALS_ID = 'SPLUNK-ADMIN-PASSWORD'
 
         TERRAFORM_DIR = '.'
+        AWS_REGION = 'us-east-1'
     }
 
     stages {
@@ -40,11 +41,9 @@ pipeline {
                     env.TFVARS_FILE = tfvars
                 }
 
-                dir("${TERRAFORM_DIR}") {
-                    script {
-                        if (!fileExists(env.TFVARS_FILE)) {
-                            error "TFVARS file not found: ${env.TFVARS_FILE}"
-                        }
+                script {
+                    if (!fileExists(env.TFVARS_FILE)) {
+                        error "TFVARS file not found: ${env.TFVARS_FILE}"
                     }
                 }
             }
@@ -65,9 +64,7 @@ pipeline {
 
         stage('Inspect TFVARS') {
             steps {
-                dir("${TERRAFORM_DIR}") {
-                    sh 'cat "${TFVARS_FILE}"'
-                }
+                sh 'cat "${TFVARS_FILE}"'
             }
         }
 
@@ -104,22 +101,20 @@ pipeline {
 
         stage('Capture Terraform Outputs') {
             steps {
-                dir("${TERRAFORM_DIR}") {
-                    script {
-                        env.INSTANCE_IP = sh(
-                            script: 'terraform output -raw instance_public_ip',
-                            returnStdout: true
-                        ).trim()
+                script {
+                    env.INSTANCE_IP = sh(
+                        script: 'terraform output -raw instance_public_ip',
+                        returnStdout: true
+                    ).trim()
 
-                        env.INSTANCE_ID = sh(
-                            script: 'terraform output -raw instance_id',
-                            returnStdout: true
-                        ).trim()
-                    }
-
-                    echo "INSTANCE_IP = ${env.INSTANCE_IP}"
-                    echo "INSTANCE_ID = ${env.INSTANCE_ID}"
+                    env.INSTANCE_ID = sh(
+                        script: 'terraform output -raw instance_id',
+                        returnStdout: true
+                    ).trim()
                 }
+
+                echo "INSTANCE_IP = ${env.INSTANCE_IP}"
+                echo "INSTANCE_ID = ${env.INSTANCE_ID}"
             }
         }
 
@@ -146,7 +141,11 @@ EOF
                     [$class: 'AmazonWebServicesCredentialsBinding',
                      credentialsId: env.AWS_CREDENTIALS_ID]
                 ]) {
-                    sh 'aws ec2 wait instance-status-ok --instance-ids "${INSTANCE_ID}"'
+                    sh '''
+                    aws ec2 wait instance-status-ok \
+                      --region ${AWS_REGION} \
+                      --instance-ids "${INSTANCE_ID}"
+                    '''
                 }
             }
         }
