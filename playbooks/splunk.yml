@@ -1,13 +1,13 @@
 ---
-- name: Install and start Splunk Enterprise
+- name: Install and start Splunk (Universal Forwarder)
   hosts: splunk
   become: true
   gather_facts: true
 
   vars:
-    splunk_url: "https://download.splunk.com/products/splunk/releases/latest/linux/splunk-latest-Linux-x86_64.tgz"
+    splunk_url: "https://download.splunk.com/products/universalforwarder/releases/latest/linux/splunkforwarder-latest-Linux-x86_64.tgz"
     splunk_install_dir: "/opt"
-    splunk_home: "/opt/splunk"
+    splunk_home: "/opt/splunkforwarder"
     splunk_user: "splunk"
     splunk_group: "splunk"
 
@@ -44,14 +44,13 @@
         create_home: true
         system: true
 
-    # 🔥 THIS IS THE CRITICAL FIX 🔥
-    - name: Download Splunk (latest) with User-Agent
+    - name: Download Splunk Universal Forwarder
       ansible.builtin.get_url:
         url: "{{ splunk_url }}"
         dest: /tmp/splunk.tgz
         mode: '0644'
         headers:
-          User-Agent: "Mozilla/5.0 (X11; Linux x86_64)"
+          User-Agent: "Mozilla/5.0"
 
     - name: Extract Splunk
       ansible.builtin.unarchive:
