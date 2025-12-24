@@ -8,8 +8,8 @@ terraform {
 }
 
 provider "aws" {
-  region = var.region # Use the variable for region
-  # Credentials will be supplied via e
+  region = var.region
+  # Credentials injected via Jenkins
 }
 
 data "aws_vpc" "default" {
@@ -46,11 +46,18 @@ resource "aws_security_group" "splunk" {
 }
 
 resource "aws_instance" "example" {
-  ami           = "ami-0ecb62995f68bb549" # Replace with a suitable AMI
-  instance_type = var.instance_type # Use the varce type
+  ami           = "ami-0ecb62995f68bb549"   # Ubuntu AMI
+  instance_type = var.instance_type
 
   key_name               = var.ssh_key_name
   vpc_security_group_ids = [aws_security_group.splunk.id]
+
+  # 🔥 CRITICAL FIX — DO NOT REMOVE
+  root_block_device {
+    volume_size = 30        # Required for Splunk Docker
+    volume_type = "gp3"
+    delete_on_termination = true
+  }
 
   tags = {
     Name = "SplunkInstance"
