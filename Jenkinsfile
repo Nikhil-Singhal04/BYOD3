@@ -24,6 +24,7 @@ pipeline {
         stage('Show Branch Info') {
             steps {
                 echo "Running on branch: ${env.BRANCH_NAME}"
+                echo "hello"
             }
         }
 
