@@ -5,8 +5,8 @@
   gather_facts: true
 
   vars:
-    splunk_version: "9.0.5"
-    splunk_deb_url: "https://download.splunk.com/products/splunk/releases/{{ splunk_version }}/linux/splunk-{{ splunk_version }}-4e7b5e2a9f15-linux-2.6-amd64.deb"
+    splunk_url: "https://download.splunk.com/products/splunk/releases/latest/linux/splunk-latest-Linux-x86_64.tgz"
+    splunk_install_dir: "/opt"
     splunk_home: "/opt/splunk"
     splunk_user: "splunk"
     splunk_group: "splunk"
@@ -20,14 +20,15 @@
         fail_msg: "Provide -e splunk_admin_password=<password> (min 8 chars)."
 
   tasks:
-    - name: Ensure prerequisite packages are present (Debian)
-      when: ansible_os_family == 'Debian'
+    - name: Install prerequisite packages
       ansible.builtin.apt:
         name:
+          - tar
+          - gzip
           - wget
-          - curl
-        state: present
         update_cache: true
+        state: present
+      when: ansible_os_family == "Debian"
 
     - name: Ensure splunk group exists
       ansible.builtin.group:
@@ -42,18 +43,20 @@
         create_home: true
         system: true
 
-    - name: Download Splunk .deb package
+    - name: Download Splunk (latest)
       ansible.builtin.get_url:
-        url: "{{ splunk_deb_url }}"
-        dest: "/tmp/splunk.deb"
+        url: "{{ splunk_url }}"
+        dest: /tmp/splunk.tgz
         mode: '0644'
 
-    - name: Install Splunk
-      ansible.builtin.apt:
-        deb: "/tmp/splunk.deb"
-        state: present
+    - name: Extract Splunk
+      ansible.builtin.unarchive:
+        src: /tmp/splunk.tgz
+        dest: "{{ splunk_install_dir }}"
+        remote_src: true
+        creates: "{{ splunk_home }}/bin/splunk"
 
-    - name: Change Splunk ownership
+    - name: Set ownership
       ansible.builtin.file:
         path: "{{ splunk_home }}"
         owner: "{{ splunk_user }}"
@@ -61,26 +64,24 @@
         recurse: true
 
     - name: Start Splunk and accept license
-      ansible.builtin.command:
-        cmd: >
-          {{ splunk_home }}/bin/splunk start
-          --accept-license
-          --answer-yes
-          --no-prompt
-          --seed-passwd {{ splunk_admin_password }}
       become_user: "{{ splunk_user }}"
+      ansible.builtin.command: >
+        {{ splunk_home }}/bin/splunk start
+        --accept-license
+        --answer-yes
+        --no-prompt
+        --seed-passwd {{ splunk_admin_password }}
       register: splunk_start
       changed_when: "'Started' in (splunk_start.stdout + splunk_start.stderr)"
 
-    - name: Enable Splunk boot-start (systemd)
+    - name: Enable Splunk boot-start
       ansible.builtin.command:
         cmd: "{{ splunk_home }}/bin/splunk enable boot-start -user {{ splunk_user }} --accept-license --answer-yes --no-prompt"
-      register: splunk_boot
-      changed_when: "'installed' in (splunk_boot.stdout + splunk_boot.stderr)"
       failed_when: false
 
     - name: Verify Splunk is running
-      ansible.builtin.command:
-        cmd: "{{ splunk_home }}/bin/splunk status"
       become_user: "{{ splunk_user }}"
-      register: splunk_sta_
+      ansible.builtin.command: "{{ splunk_home }}/bin/splunk status"
+      register: splunk_status
+      changed_when: false
+      failed_when: "'splunkd is running' not in splunk_status.stdout"
