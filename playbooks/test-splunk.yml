@@ -1,14 +1,14 @@
 ---
-- name: Test Splunk service and reachability
+- name: Test Splunk Universal Forwarder service
   hosts: splunk
   become: true
-  gather_facts: true
+  gather_facts: false
 
   vars:
-    splunk_home: "/opt/splunk"
+    splunk_home: "/opt/splunkforwarder"
 
   tasks:
-    - name: Check Splunk service status command
+    - name: Check Splunk Forwarder service status
       become_user: splunk
       ansible.builtin.command:
         cmd: "{{ splunk_home }}/bin/splunk status"
@@ -16,21 +16,13 @@
       changed_when: false
       failed_when: "'splunkd is running' not in splunk_status.stdout"
 
-    - name: Wait for Splunk Web port to be reachable from controller
-      ansible.builtin.wait_for:
-        host: "{{ inventory_hostname }}"
-        port: 8000
-        timeout: 180
-      delegate_to: localhost
-      become: false
+    - name: Check Splunk Forwarder version
+      become_user: splunk
+      ansible.builtin.command:
+        cmd: "{{ splunk_home }}/bin/splunk version"
+      register: splunk_version
+      changed_when: false
 
-    - name: Verify Splunk Web responds
-      ansible.builtin.uri:
-        url: "http://{{ inventory_hostname }}:8000/en-US/account/login"
-        method: GET
-        status_code:
-          - 200
-          - 303
-        return_content: false
-      delegate_to: localhost
-      become: false
+    - name: Display Splunk Forwarder version
+      ansible.builtin.debug:
+        msg: "{{ splunk_version.stdout }}"
