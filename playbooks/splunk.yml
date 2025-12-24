@@ -26,6 +26,7 @@
           - tar
           - gzip
           - wget
+          - curl
         update_cache: true
         state: present
       when: ansible_os_family == "Debian"
@@ -43,11 +44,14 @@
         create_home: true
         system: true
 
-    - name: Download Splunk (latest)
+    # 🔥 THIS IS THE CRITICAL FIX 🔥
+    - name: Download Splunk (latest) with User-Agent
       ansible.builtin.get_url:
         url: "{{ splunk_url }}"
         dest: /tmp/splunk.tgz
         mode: '0644'
+        headers:
+          User-Agent: "Mozilla/5.0 (X11; Linux x86_64)"
 
     - name: Extract Splunk
       ansible.builtin.unarchive:
